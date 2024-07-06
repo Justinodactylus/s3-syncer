@@ -1,3 +1,4 @@
-boto3
-tqdm
 setuptools
+requests
+aiofiles
+aiobotocore

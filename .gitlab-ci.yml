@@ -1,0 +1,60 @@
+stages:
+  - build
+  - release
+
+variables:
+  BUILD_DIR: "${CI_PROJECT_DIR}/dist"
+  BUILD_IMAGE_URL_W_TAG: "python:3-alpine"
+
+packaging:
+  stage: build
+  image:
+    name: $BUILD_IMAGE_URL_W_TAG
+    entrypoint: [""]
+  script:
+    - |
+      pip install \
+        --user \
+        --force-reinstall \
+        --trusted-host pypi.mydomain.com \
+        --index https://pypi.mydomain.com/pypi/ \
+        wheel setuptools build
+    - python3 -m build --wheel --outdir ${BUILD_DIR}
+    - ls -la ${BUILD_DIR}
+  artifacts:
+    expire_in: 24h
+    paths:
+      - ${BUILD_DIR}
+
+pypi-release-push:
+  stage: release
+  needs:
+    - job: packaging
+  image:
+    name: $BUILD_IMAGE_URL_W_TAG
+    entrypoint: [""]
+  script:
+    - |
+      pip install \
+        --force-reinstall \
+        --trusted-host pypi.mydomain.com \
+        --index https://pypi.mydomain.com/pypi/ \
+        twine wheel setuptools
+    - |
+      twine upload \
+        ${BUILD_DIR}/*
+  rules:
+    - if: $CI_COMMIT_TAG
+
+pypi-release-check:
+  stage: release
+  needs:
+    - job: pypi-release-push
+  image:
+    name: $BUILD_IMAGE_URL_W_TAG
+    entrypoint: [""]
+  script:
+    - pip install --force-reinstall --trusted-host pypi.mydomain.com --index-url https://pypi.mydomain.com/pypi/ s3-syncer=="${CI_COMMIT_TAG}"
+    - s3-syncer --help
+  rules:
+    - if: $CI_COMMIT_TAG
